@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gráfico de Preços</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://code.highcharts.com/highcharts.js"></script>
+  <script src="https://code.highcharts.com/modules/annotations.js"></script>
+  <script src="https://code.highcharts.com/modules/accessibility.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.43/moment-timezone-with-data.min.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+    }
+    .container-chart {
+      height: 100%;
+      width: 100%;
+      display: flex;
+      align-items: stretch;
+      justify-content: stretch;
+    }
+    #grafico {
+      flex: 1;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+<div class="container-chart">
+  <div id="grafico"></div>
+</div>
+<script>
+  async function carregarDados() {
+    try {
+      const resposta = await fetch("https://n8n-n8n.bqznqa.easypanel.host/webhook/92ec7fd3-bfc5-4fdb-97f3-29f9b863a078");
+      if (!resposta.ok) throw new Error('Resposta da rede não foi ok');
+
+      const dados = await resposta.json();
+      if (!Array.isArray(dados)) throw new Error('Formato de dados inválido');
+
+      const seriesData = dados.map(ponto => {
+        try {
+          if (!ponto.created_at || ponto.preco === undefined) throw new Error('Campos obrigatórios ausentes');
+          const dataSP = moment.tz(ponto.created_at, "America/Sao_Paulo").valueOf();
+          const preco = parseFloat(ponto.preco);
+          if (isNaN(preco) || isNaN(dataSP)) throw new Error('Valores inválidos');
+          return [dataSP, preco];
+        } catch (erroInterno) {
+          console.warn("Item ignorado por erro:", erroInterno.message);
+          return null;
+        }
+      }).filter(p => p !== null);
+
+      if (seriesData.length === 0) throw new Error('Nenhum dado válido encontrado.');
+      seriesData.sort((a, b) => a[0] - b[0]);
+
+      Highcharts.chart('grafico', {
+        chart: { type: 'area', animation: { duration: 1500 } },
+        title: { useHTML: true, text: '<a href="https://www.kabum.com.br/produto/515045/monitor-gamer-rise-mode-32-2k-165hz-1ms-ips-preto-hdmi-e-displayport-srgb-99-suporte-vesa-rm-mog-32f1652k-b" target="_blank" style="text-decoration:none;color:#212529;">Histórico de preço do Monitor RM-MOG-32F1652K-B</a>' },
+        xAxis: { type: 'datetime', title: { text: 'Data (America/São Paulo)' } },
+        yAxis: {
+          title: { text: 'Preço (R$)' },
+          labels: {
+            formatter: function () {
+              return 'R$ ' + Highcharts.numberFormat(this.value, 2, ',', '.');
+            }
+          },
+          plotLines: [
+            {
+              color: 'green',
+              width: 2,
+              value: 1000,
+              dashStyle: 'Dash',
+              label: {
+                text: 'R$ 1.000,00',
+                align: 'right',
+                x: -10,
+                style: { color: 'green', fontWeight: 'bold' }
+              },
+              zIndex: 5
+            },
+            {
+              color: 'red',
+              width: 2,
+              value: 2000,
+              dashStyle: 'Dash',
+              label: {
+                text: 'R$ 2.000,00',
+                align: 'right',
+                x: -10,
+                style: { color: 'red', fontWeight: 'bold' }
+              },
+              zIndex: 5
+            }
+          ]
+        },
+        tooltip: {
+          xDateFormat: '%d/%m/%Y %H:%M',
+          pointFormat: '<b>R$ {point.y:,.2f}</b>'
+        },
+        plotOptions: {
+          area: {
+            fillColor: Highcharts.color('#007bff').setOpacity(0.2).get('rgba'),
+            marker: { radius: 4 },
+            lineWidth: 2,
+            states: { hover: { lineWidth: 2 } },
+            threshold: null
+          },
+          line: {
+            fillColor: Highcharts.color('#007bff').setOpacity(0.2).get('rgba'),
+            marker: { radius: 4 },
+            lineWidth: 2,
+            states: { hover: { lineWidth: 2 } },
+            threshold: null
+          }
+        },
+        series: [{
+          name: null,
+          showInLegend: false,
+          data: seriesData.map(ponto => ({
+            x: ponto[0],
+            y: ponto[1],
+            color: ponto[1] <= 1000 ? 'green' : ponto[1] >= 2000 ? 'red' : '#007bff',
+            dataLabels: {
+              enabled: ponto[1] <= 1000 || ponto[1] >= 2000,
+              format: 'R$ {y:,.2f}',
+              style: { fontWeight: 'bold', color: ponto[1] <= 1000 ? 'green' : 'red' }
+            }
+          })),
+          color: '#007bff'
+        }]
+      });
+    } catch (e) {
+      console.error("Erro ao carregar dados:", e);
+      alert("Erro ao carregar dados do servidor: " + e.message);
+    }
+  }
+  carregarDados();
+</script>
+</body>
+</html>
